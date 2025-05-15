@@ -1,0 +1,862 @@
+Question,Answer
+Wildfly setup basics,"Configuring jdk in wildfly
+For optimal performance, ESME requires a minimum version of WildFly 16 and
+JAVA 1.8.
+JAVA_HOME=""/opt/java/jdk""
+2.1.2 Configuring Memory in Wildfly
+Within the bin directory of the WildFly installation home, you'll locate the
+standalone.conf file designed for UNIX-based systems. To customize the
+memory allocation, you can open the file and modify the -Xmx option in the
+indicated line according to your specific needs.
+JAVA_OPTS=""-Xms1024m-Xmx1024m""
+This will set the heap memory while starting up the server.
+2.1.3 Configuring Standalone.xml
+You can find the configuration file at
+$WILDFLY_HOME/standalone/configuration/standalone.xml. Navigate to the
+<socket-binding-group> section to set up the following:
+1. ajp port
+2. https port
+3. HTTP port (default is 8080, and you can change it to any available port)
+Before making changes, you may want to use the netstat command to check the
+availability of ports.
+netstat -antp|grep 8080
+1. management http port.
+2. management https port.
+<socket-binding name=""http"" port=""${jboss.http.port:8080}""/>
+"
+Deploying Esme. war,"The deployment package, Esme. war includes the following components:
+1. classes: Contains configuration files like log4j.xml and smpp.xml.
+2. lib: Holds essential library files.
+3. web.xml: Provides definitions and mappings for servlets.
+There are two deployment methods available:
+1. Via Admin Panel: Access the WildFly Admin Console, navigate to the
+Deployment section, and deploy Esme. war using the provided options.
+2. Via 'dodeploy' Marker: Place Esme. war in the
+`$WILDFLY_HOME/standalone/deployments/` directory. Create a marker file
+named `Esme.war.dodeploy` alongside it. This marker file instructs WildFly to
+initiate the deployment process automatically."
+Adding mysql/oracle jar to wildfly,"Mysql/oracle jar must be added to the respective class path of the wildfly. In
+case of mysql, the path is like
+$WILDFLY_HOME/modules/system/layers/base/com/mysql/jdbc
+/Driver/main . We need to add the mysql jar and create the corresponding
+module.xml file. In module.xml, the module name should match the path name
+and the resource-root-path must be the name of the mysql jar.
+Example:
+<?xml version=""1.0"" encoding=""UTF-8""?>
+<module xmlns=""urn:jboss:module:1.0"" name=""com.mysql.cj.jdbc.Driver"">
+<resources>
+<resource-root path=""mysql-connector-java-8.0.30.jar"" />
+</resources>
+<dependencies>
+<module name=""javax.api"" />
+<module name=""javax.transaction.api"" />
+</dependencies>
+</module>"
+Configuring jndi of MySQL/oracle,"To integrate MySQL or Oracle JDBC drivers with WildFly, follow these
+steps:
+1. MySQL Integration:
+- Place the MySQL JAR file in the directory:
+`$WILDFLY_HOME/modules/system/layers/base/com/mysql/jdbc/Driver/m
+ain`.
+- Create a `module.xml` file in the same directory with the following
+content:
+```xml
+<?xml version=""1.0"" encoding=""UTF-8""?>
+<module xmlns=""urn:jboss:module:1.3"" name=""com.mysql.jdbc.Driver"">
+<resources>
+<resource-root path=""mysql-connector-java-{version}.jar""/>
+</resources>
+<dependencies>
+<module name=""javax.api""/>
+<module name=""javax.transaction.api""/>
+</dependencies>
+</module>
+```
+Make sure to replace `{version}` with the actual version number of your
+MySQL connector JAR file."
+Logging in Wildfly,"The configuration of the overall server logging in WildFly is encapsulated within
+the logging subsystem, which comprises four significant components: handler
+configurations, loggers, declarations for the root logger, and logging profiles.
+Per-deployment logging provides the flexibility to include a logging configuration
+file within your deployment, allowing customization of the logging behavior for
+that specific deployment. In the case of a WAR deployment, the configuration file
+should be placed in the WEB-INF/classes directory. The acceptable configuration
+file formats include:
+1 - logging.properties
+2 - jboss-logging.properties
+3 - log4j.properties
+4 - log4j.xml
+5 - jboss-log4j.xml"
+ESME Application Configuration,"Smpp.xml
+The primary action in managing our ESME involves verifying the accuracy of
+configurations in the smpp.xml file, which is located at
+$WILDFLY_HOME/standalone/deployments/ESME.war/WEB-INF/classes/smpp.x
+ml. A sample smpp.xml file is provided here.
+To establish a successful binding with the SMSC (Short Message Service Centre),
+ensure that the following tags are configured correctly on both ends.
+1. smsc id: Ensure a unique identifier for the SMSC.
+2.IP address: Set the IP address of the SMSC.
+3.port: Specify the SMPP port.
+4.System-id: Identify the ESME system requesting to bind as a transceiver with
+the SMSC.
+5.Password: According to the SMPP standard, the password should be less
+than 9 characters.
+6.Review the Smpp 3.4 Documentation for further insights. After the initial
+configurations, consider the following:
+7.Bind mode: Specify the bind mode as 't' for transmitter, 'r' for receiver, or
+'tr' for transceiver.
+8.Registered delivery: Determine whether you need a delivery receipt from
+the SMSC. The default setting for the registered_delivery parameter is 0x00.
+<REGISTERED-DELIVERY>1</REGISTERED-DELIVERY>
+1 → need delivery receipt 0 → no delivery receipt"
+connector session configuration sending MO message (reciving message from smsc sending to Ngw),"connector - This section details the transport protocol, transport method,
+transport URLs and the message format we use to connect to the MO_Router
+or any other application in case of any incoming feed from SMSC. Refer in
+detail about the connector section of SMPP.xml here.
+```<connector>
+<!-- Simultanouly, No of thread send msges to NG/3rd party through http.-->
+<max_connection>5</max_connection>
+<transportprotocol>http</transportprotocol>
+<transportmethod>post</transportmethod>
+<transporturl1>http://10.0.0.69:8076/UMS/HttpAdapter</transporturl1>
+<transporturl2>http://10.0.0.69:9650/ProfileManager_Ums/HttpAdapter</transporturl2>
+<messageformat>""timeStamp"": ""{0}"",""transactionId"": ""{1}"",""smscID"": ""{2}"",""esmClass"":
+""{4}"",""orginatingAddress"": ""{5}"",""destinationAddress"": ""{6}"",""dcs"": ""{7}"",""sms"": ""{8}"",""byteSms"":
+""{9}"",""optionalParamText"":""{11}"",""message"":""{17}"",""messageIdentifier"":""{18}"",""messageParts"":
+""{19}"",""messagePartNumber"":""{20}""</messageformat>
+</connector>```
+
+where
+1. Max_connection - No. of thread that sends msgs to NG/3rd party through
+http. It can be of range 1-5 .
+2. Transport Protocol - the required transport protocol like Http
+3. Transport Method - the required transport method according to the
+corresponding transport protocol.
+4. Transport URL - the URL to which the request xml should send.
+5. Messageformat - the format in which request xml is sent from the ESME to
+the MOR. It behaves differently with the length of the message from the
+SMSC. [MOR]"
+"from smsc to esme When multi-part messages are coming from the SMSC, EsmClass 64","We could see the long message from SMSC is getting splitted into 2 multi-part
+messages .
+<MESSAGE> have the decoded message string from <SMS-BYTE> tag, after
+removing UDH headers. If you compare the <SMS> with <MESSAGE>, we can see
+that there are few unwanted characters coming in front of the message in
+<SMS>. Those are UDH headers in unreadable format.
+<MESSAGE-IDENTIFIER> gives the message identifier, here 85 that is coming in
+both packets of multi-part messages. This identifier is used to concat these
+splitted messages at the MOR side.
+<MESSAGE-PARTS> gives the total number of Message Parts. Here, it is two,
+which means two part-messages will be there.
+<MESSAGE-PART-NUMBER> gives the sequence number of Message Part. Here,
+we could see in the first packet, it is given as one, and the second packet, it is
+given as two. This helps to find the order in which we need to concat the
+part-messages."
+"When single message [ less than 160chars] are coming, EsmClass 0","MESSAGE → it has the same message from the <SMS>, since esm class value is 0
+and no multi-part messages are coming. No UDH headers are coming from
+SMSC .
+MESSAGE-IDENTIFIER, MESSAGE-PARTS, MESSAGE-PART-NUMBER → Empty
+since No UDH headers are coming from SMSC."
+Delivery connector for sending the delivery recipt to ngw mo-router ,"This section details the transport protocol, transport
+method, transport URLs and the message format we use to send the
+delivery receipt , when RegisteredDelivery is 1, to the required 3rd party
+module like UMS/NG. Refer in detail about delivery connector of SMPP.xml
+here.   ``` <deliveryconnector>
+<!-- Simultanouly, No of thread send msges to NG/3rd party through http.-->
+<max_connection>5</max_connection>
+<transportprotocol>http</transportprotocol>
+<transportmethod>post</transportmethod>
+<transporturl1>http://10.0.0.65:8022/MCA/HttpAdapter</transporturl1>
+<transporturl2>http://10.0.0.69:9650/ProfileManager_Ums/HttpAdapter</transporturl2>
+<messageformat>""featureId"": ""DELIVERY-RECEIPT"",""timeStamp"": ""{0}"",""transactionId"":
+""{1}"",""smscID"": ""{2}"",""commandId"": ""{3}"",""orginatingAddress"": ""{5}"",""destinationAddress"":
+""{6}"",""dcs"": ""{7}"",""sms"": ""{8}"",""messageId"": ""{10}""</messageformat>
+</deliveryconnector>``` , FEATURE → here feature will be DELIVERY-RECEIPT
+ESM-CLASS → the value of EsmClass will be 4, for delivery-receipt"
+Optional parameters,"these are the optional tags that can be used in
+special cases like message payload. (Refer to the section about special cases).
+``` <optionalparameterstag>
+<tlv1>
+<tag>0424</tag>
+<name>message_payload</name>
+</tlv1>
+</optionalparameterstag>```"
+Service-type,"The service_type parameter can be used to indicate the SMS
+Application service associated with the message.
+Specifying the service_type allows the ESME to
+• avail of enhanced messaging services such as replace by service type
+• to control the tele-service used on the air interface.
+Set to NULL for default SMSC settings."
+dcs ( data coding ) for settings english and other language dcs and data coding values,"It is known as Data coding scheme. Defines the encoding scheme of the
+short message user data. Zero is the default, for English. For other languages,
+dcs value used is 8. For Flash Message, dcs value can be 16."
+messageReceiverListenerImpl  ( when MO message means sms comming from smsc),"This tag gives the full class path to the class
+messageReceiverListenerImpl. Current value is,
+com.sixdee.imp.receiver.MessageReceiverListenerImpl . Don’t change this value
+unless Development Team suggests so"
+TPS,"Transaction per second (TPS) is the number of transactions executed
+per second. In other words, it can be calculated based on how many
+transactions are executed over a certain duration of the test and then
+calculate it for a second.For example, if a user executes 6 transactions every
+minute, then the TPS would be 6 transactions/60 sec = 0.10 TPS.
+The default value will be -1. Change to 1 when ESME is going to be
+implemented with retry"
+enquireLinkTimer,"The enquire link timer is an SMPP session timer to
+enable the ESME request the SMPP session status of the other
+communicating SMPP entity via the enquire_link command. The value ranges
+from 5 - 10, in seconds."
+.receive-timeout,"The receive timeout is a timeout for trying to receive a
+message from the SMSC in synchronize way. Set the receive-timeout to
+number of seconds. The value ranges from 5 - 10, in seconds."
+pdu-processors,"No of thread process simultaneously for SMSC request.
+Max value can be 5."
+pdu-maxQueueSize,"set the pdu-processor waiting queue size. If you want
+go to infinite, set the pdu-maxQueueSize to -1.Otherwise set the
+pdu-maxQueueSize to number ."
+API Packets ( sending sms to smsc from esme),"esme is contains submit_sm, synch_submit_sm for sending sms to the smsc from esme"
+submit_sm request packet,"<REQ>
+<FEATURE>submit_sm</FEATURE>
+<TIME-STAMP>25062009103510</TIME-STAMP>
+<RESPONSE-URL>http://localhost:8080/ESME/TestServlet</RESPONSE-URL>
+<PARAMETERS>
+<REQ-TRANSACTION-ID>0</REQ-TRANSACTION-ID>
+<SMSC-ID>airtel</SMSC-ID>
+<SUBMIT-SM>
+<SOURCE-ADDR-TON>0</SOURCE-ADDR-TON>
+<SOURCE-ADDR-NPI>0</SOURCE-ADDR-NPI>
+<SOURCE-ADDR>1234</SOURCE-ADDR>
+<DEST-ADDR-TON>0</DEST-ADDR-TON>
+<DEST-ADDR-NPI>0</DEST-ADDR-NPI>
+<DESTINATION-ADDR>9945626828</DESTINATION-ADDR>
+<ESM-CLASS>0</ESM-CLASS>
+<concatenatedSMesmClass>0</concatenatedSMesmClass>
+<SHORT-MESSAGE>UkNIUiAyMjIy</SHORT-MESSAGE>
+<DATA-CODING>0</DATA-CODING>
+</SUBMIT-SM>
+</PARAMETERS>
+</REQ>
+Instant response
+<RESP>
+<TIME-STAMP>23072021202222</TIME-STAMP>
+<STATUS>0</STATUS>
+</RESP>
+Final response
+<RESP>
+<STATUS>0</STATUS>
+<STATUS-CODE>0</STATUS-CODE>
+<TIME-STAMP>30072021192109</TIME-STAMP>
+<PARAMETERS>
+<REQ-TRANSACTION-ID>0</REQ-TRANSACTION-ID>
+<RESP-TRANSACTION-ID>0</RESP-TRANSACTION-ID>
+<SMSC-ID>airtel</SMSC-ID>
+</PARAMETERS>
+</RESP>"
+synch_submit_sm request packet,"<REQ>
+<FEATURE>synch_submit_sm</FEATURE>
+<TIME-STAMP>09092015184542</TIME-STAMP>
+<PARAMETERS>
+<REQ-TRANSACTION-ID>2</REQ-TRANSACTION-ID>
+<SMSC-ID>airtel</SMSC-ID>
+<SUBMIT-SM>
+<SOURCE-ADDR-TON>0</SOURCE-ADDR-TON>
+<SOURCE-ADDR-NPI>0</SOURCE-ADDR-NPI>
+<SOURCE-ADDR>8688492301</SOURCE-ADDR>
+<DEST-ADDR-TON>0</DEST-ADDR-TON>
+<DEST-ADDR-NPI>0</DEST-ADDR-NPI>
+<DESTINATION-ADDR>222222222</DESTINATION-ADDR>
+<ESM-CLASS>0</ESM-CLASS>
+<concatenatedSMesmClass>0</concatenatedSMesmClass>
+<SHORT-MESSAGE>SSBjYWxsZWQgWW91IGF0IFdlZCwgOSBTZXAgMjAxNSAxODo
+xMDoyNQ==</SHORT-MESSAGE>
+<REGISTERED-DELIVERY>1</REGISTERED-DELIVERY>
+<DATA-CODING>0</DATA-CODING>
+</SUBMIT-SM>
+</PARAMETERS>
+</REQ>
+Synch_submit_response
+<RESP>
+<STATUS>0</STATUS>
+<STATUS-CODE>0</STATUS-CODE>
+<TIME-STAMP>23072021202301</TIME-STAMP>
+<PARAMETERS>
+<REQ-TRANSACTION-ID>2</REQ-TRANSACTION-ID>
+<RESP-TRANSACTION-ID>7</RESP-TRANSACTION-ID>
+<SMSC-ID>airtel</SMSC-ID>
+<MESSAGE-ID>5</MESSAGE-ID>
+</PARAMETERS>
+</RESP>
+
+"
+"MESSAGE PAYLOAD & UDH  for multi-part message, split messages","UDH Support [Primary Method],  <ESM-CLASS>64</ESM-CLASS>
+<concatenatedSMesmClass>64</concatenatedSMesmClass>"
+Message Payload [SMSC Support Required],"<ESM-CLASS>0</ESM-CLASS>
+<concatenatedSMesmClass>0</concatenatedSMesmClass> <MESSAGE-PAYLOAD>true</MESSAGE-PAYLOAD>"
+ESME MO & Delivery Packets [ in smpp.xml ],"MO Flow [Connector url]
+<XML>
+<TIME-STAMP>{0}</TIME-STAMP>
+<TRANSACTION-ID>{1}</TRANSACTION-ID>
+<SMPP-ID>{2}</SMPP-ID>
+<ESM-CLASS>{4}</ESM-CLASS>
+<OA>{5}</OA>
+<DA>{6}</DA>
+<DCS>{7}</DCS>
+<SMS>{8}</SMS>
+<SMS-BYTE>{9}</SMS-BYTE>
+<OPTIONAL-PARAM>{11}</OPTIONAL-PARAM>
+<MESSAGE>{17}</MESSAGE>
+<MESSAGE-IDENTIFIER>{18}</MESSAGE-IDENTIFIER>
+<MESSAGE-PARTS>{19}</MESSAGE-PARTS>
+<MESSAGE-PART-NUMBER>{20}</MESSAGE-PART-NUMBER>
+</XML>
+Sample
+<XML>
+<TIME-STAMP><![CDATA[20210730194044]]></TIME-STAMP>
+<TRANSACTION-ID><![CDATA[74376]]></TRANSACTION-ID>
+<SMPP-ID><![CDATA[airtel]]></SMPP-ID>
+<OA><![CDATA[4477665544]]></OA>
+<DA><![CDATA[337788665522]]></DA>
+<DCS><![CDATA[0]]></DCS>
+<SMS><![CDATA[Hello from SMPPSim Hello from SMPPSim Hello from SMPPSim
+Hello from SMPPSimHello from SMPPSimHello from SMPPSimHello from
+SMPPSim]]></SMS>
+<SMS-BYTE><![CDATA[IEhlbGxvIGZyb20gU01QUFNpbSBIZWxsbyBmcm9tIFNNUF
+BTaW0gSGVsbG8gZnJvbSBTTVBQU2ltIEhlbGxvIGZyb20gU01QUFNpbUhlbGxvIGZ
+yb20gU01QUFNpbUhlbGxvIGZyb20gU01QUFNpbUhlbGxvIGZyb20gU01QUFNpb
+Q==]]></SMS-BYTE>
+<OPTIONAL-PARAM><![CDATA[]]></OPTIONAL-PARAM>
+<MESSAGE><![CDATA[from SMPPSim Hello from SMPPSim Hello from SMPPSim
+Hello from SMPPSim Hello from SMPPSim Hello from SMPPSim]]></MESSAGE>
+<MESSAGE-IDENTIFIER><![CDATA[111]]></MESSAGE-IDENTIFIER>
+<MESSAGE-PARTS><![CDATA[2]]></MESSAGE-PARTS>
+<MESSAGE-PART-NUMBER><![CDATA[1]]></MESSAGE-PART-NUMBER>
+</XML>
+"
+Delivery Receipt [Delivery connector url],"<REQ>
+<FEATURE>DELIVERY-RECEIPT</FEATURE>
+<TIME-STAMP>{0}</TIME-STAMP>
+<TRANSACTION-ID>{1}</TRANSACTION-ID>
+<SMPP-ID>{2}</SMPP-ID>
+<COMMAND-ID>{3}</COMMAND-ID>
+<ESM-CLASS>{4}</ESM-CLASS>
+<OA>{5}</OA>
+<DA>{6}</DA>
+<DCS>{7}</DCS>
+<SMS>{8}</SMS>
+<MESSAGE-ID>{10}</MESSAGE-ID>
+</REQ>
+Sample
+<REQ>
+<FEATURE>DELIVERY-RECEIPT</FEATURE>
+<TIME-STAMP><![CDATA[20210730194217]]></TIME-STAMP>
+<TRANSACTION-ID><![CDATA[74378]]></TRANSACTION-ID>
+<SMPP-ID><![CDATA[airtel]]></SMPP-ID>
+<COMMAND-ID><![CDATA[5]]></COMMAND-ID>
+<OA><![CDATA[222222222]]></OA>
+<DA><![CDATA[8688492301]]></DA>
+<DCS><![CDATA[0]]></DCS>
+<SMS><![CDATA[id:1 sub:001 dlvrd:001 submit date:2107301942 done
+date:2107301942 stat:DELIVRD err:000 Text:I called You at Wed,]]></SMS>
+<MESSAGE-ID><![CDATA[1]]></MESSAGE-ID>
+</REQ>"
+ESME Json Request Packet,Adapters: http://localhost:8081/ESME/HttpJsonAdapter
+json  Submit_sm  packe,"{
+""featureId"":""submit_sm"",
+""timeStamp"":25062009103510,
+""respUrl"":""http://localhost:8080/ESME/TestServlet"",
+""parameters"":{
+""reqTransactionId"":0,
+""smscId"":""airtel"",
+""submitSm"":{
+""sourceAddrTon"": ""0"",
+""sourceAddrNpi"": ""0"",
+""sourceAddr"":1234,
+""destAddrTon"": ""0"",
+""destAddrNpi"": ""0"",
+""destinationAddr"":11111111,
+""esmClass"": ""0"",
+""concatenatedSMesmClass"": ""0"",
+""dataCoding"":0,
+""shortMessage"":""UkNIUiAyMjIy""
+}
+}
+}
+Instant response
+{
+""Response"": {
+""timeStamp"": ""23072021104848"",
+""status"": ""0""
+}
+}
+
+Final response
+{
+""status"":""0"",
+""statusCode"":""0"",
+""timeStamp"":""23072021122642"",
+""parameters"":{
+""reqTransactionId"":""0"",
+""respTransactionId"":""0"",
+""smscId"":""airtel""
+}
+}"
+jsom Synch_Submit_sm,"{
+""featureId"": ""synch_submit_sm"",
+""timeStamp"": ""09092015184542"",
+""parameters"": {
+""reqTransactionId"": ""1"",
+""smscId"": ""airtel"",
+""submitSm"": {
+""sourceAddrTon"": ""0"",
+""sourceAddrNpi"": ""0"",
+""sourceAddr"": ""8688492301"",
+""destAddrTon"": ""0"",
+""destAddrNpi"": ""0"",
+""destinationAddr"": ""222222222"",
+""esmClass"": ""0"",
+""concatenatedSMesmClass"": ""0"",
+""dataCoding"":0,
+""shortMessage"":
+""SSBjYWxsZWQgWW91IGF0IFdlZCwgOSBTZXAgMjAxNSAxODoxMDoyNQ=="",
+""registeredDelivery"": ""1""
+}
+}
+}
+Synch_submit_response
+{
+""status"": ""0"",
+""statusCode"": ""0"",
+""timeStamp"": ""23072021123007"",
+""parameters"": {
+""reqTransactionId"": ""2"",
+""respTransactionId"": ""1"",
+""smscId"": ""airtel"",
+""messageId"": ""38""
+}
+}"
+Request & Response API,"we have 2 API'S for sending the smc to smsc , example : : http://localhost:8081/ESME/HttpAdapter"
+submit_sm defination,"in submit_sm, Acknowledgement is given when the request hits the ESME
+URL and after processing, the original response is given to the resp URL attached
+in the request API. For synch_submit_sm, Request and Response will generate in
+the same cycle simultaneously, so no acknowledgement is given in that case."
+Synch_Submit_S defination,"In synch_submit_sm, the response is synchronized with the request. A sample
+packet of request, response and the adapter of synch_submit_sm is shown
+below.
+Adapters: http://localhost:8081/ESME/HttpAdapter"
+Message Payload[MT]  ,"A maximum of 254 octets (according to standard smpp configuration) can be
+sent in submit_sm. To send larger user data sizes [from ESME to SMSC], there
+are two methods."
+Multipart message with UDH,"MO-Router needs to send splitted message segments with additional message
+header parameters (UDH - User Data Header) . When sending a multipart
+message, SMPP requires us to send each message part using a separate
+request. Each request must include a UDH in the message text that indicates
+that it is part of a multipart message. The two relevant parameters in the
+PDU body are:
+◆ esm_class — set the value to 0x40 (this is 64 in decimal) to indicate that
+there is a UDH.
+◆ short_message — add the UDH information at the beginning of the
+message.
+Message 1 (UDH+153 chars length message)
+esm_class = 0x40 x1xxxxxx
+short_message = 0x05 0x00 0x03 0x05 0x02 0x01 Barcelona are to appeal against
+Uefa's proposal to ban Andres Iniesta for an additional Champions League match for
+allegedly provoking a yellow card. The
+Message 2 (UDH+rest of the message)
+esm_class = 0x40 x1xxxxxx
+short_message = 0x05 0x00 0x03 0x05 0x02 0x02 26-year-old Spain midfielder was
+booked in the quarter-final against Shakhtar Donetsk, meaning he missed the return leg
+but would then be available.
+Maximum Characters Per Concatenated Message
+The maximum number of characters per concatenated message depends on the
+encoding, 153 characters for 7-bit encoding (e.g., Latin-1/9 and GSM8)
+● 134 characters for 8-bit encoding (Binary)
+● 67 characters for 16-bit encoding (Unicode) , In request xml [ Request from MO Router to ESME ]
+<ESM-CLASS>64</ESM-CLASS>
+<concatenatedSMesmClass>64</concatenatedSMesmClass>"
+Message payload concept,"We need to configure the following tags in the smpp.xml and add the extra tags
+in request xml for enabling the payload.
+<optionalparameterstag>
+<tlv1>
+<tag>0424</tag>
+<name>message_payload</name>
+<type>Octet</type>
+</tlv1>
+</optionalparameterstag>
+In request xml [ Request from MO Router to ESME ]
+<ESM-CLASS>0</ESM-CLASS>
+<concatenatedSMesmClass>0</concatenatedSMesmClass>
+<MESSAGE-PAYLOAD>true</MESSAGE-PAYLOAD>"
+Multiple SMSC Support,"ESME has the multi - smpp support. It can be connected to two or more smsc
+accounts. We need to configure the accounts separately in the smpp.xml. A
+sample configuration is attached here. It will support different bind modes for
+different smsc accounts.    <config>
+<smsc id=“SMSC1” protocol=“smpp”>
+<ip-address>127.0.0.1</ip-address>
+<port>8056</port>
+<system-id>j</system-id>
+<password>jpwd</password>
+<bind-mode>tr</bind-mode>
+…
+</smsc>
+<smsc id=“SMSC2” protocol=“smpp”>
+<ip-address>127.0.0.1</ip-address>
+<port>8056</port>
+<system-id>j</system-id>
+<password>jpwd</password>
+<bind-mode>tr</bind-mode>
+…
+</smsc>
+</config>"
+esme will support Retry part also ,"ESME also supports the Retry Feature. In Retry Config Properties, change the
+value of the synchSubmitSm to retrySubmitSm and make the value of
+roundRobinSupport to false.
+Example:
+synchSubmitSm = retrySubmitSm
+roundRobinSupport=false
+sample request:
+<REQ>
+<FEATURE>retry</FEATURE>
+<TIME-STAMP>29032021184543</TIME-STAMP>
+<RESPONSE-URL>http://localhost:8080/Sampleproject-0.0.1-SNAPSHOT/AppTest1</RESPONSEURL>
+<PARAMETERS>
+<REQ-TRANSACTION-ID>335</REQ-TRANSACTION-ID>
+<SMSC-ID>airtel1</SMSC-ID>
+<SUBMIT-SM>
+<SOURCE-ADDR>555</SOURCE-ADDR>
+<DESTINATION-ADDR>168425861</DESTINATION-ADDR>
+<SHORT-MESSAGE>NkQgTEFCIFRFU1Q=</SHORT-MESSAGE>
+</SUBMIT-SM>
+</PARAMETERS>
+</REQ>"
+ESME RECIEVEING ABOVE 160 chars[MO],"SMSC usually transfers characters less than 160 in the message bytes to the
+ESME (MO flow). But sometimes, SMSC will transfer above 160 characters to
+ESME. And this long message comes as multiple messages i.e. part-messages to
+ESME with corresponding UDH headers. The first few characters of each part
+message are reserved for these UDH headers, which may appear as junk
+characters in the trace and logs. These junk characters a.k.a UDH headers are
+needed for Mo Router or any other equivalent module to do the process of
+message concatenation. Mo router saves each part message and
+concatenate them using their own internal logic with the help of these UDH
+headers.
+The <SMS-BYTE> tag in the request xml to MO router [ refer connector URL
+section] from ESME gives the incoming message from SMSC in byte format, but
+base 64 encoded. The same can be decoded into bytes, by MO Router, for
+getting the UDH headers in order to use them for the operation of
+concatenation. [MOR internal logic]
+Note: ESME don't concatenate the message using UDH.
+The following images can be used for the better understanding of the concept in
+detail.
+<SMS>
+<![CDATA[
+dlxxxxxxxxcccccshdhhdhdhdhdhdhhdjdndndjdjdndndjdjdjjdjdjdjdjdjdjjdjdjdjdhdhdjdjdjdjdjjdjdjdj
+dhdhdhddhdhdhdjjdjdhdhdhdhhdhdhdhdjdidieidjdhhdhdhshshshhdhsh]]>
+</SMS>
+<SMS-BYTE>
+<![CDATA[BQADFwIBZGx4eHh4eHh4eGNjY2Njc2hkaGhkaGRoZGhkaGRoaGRqZG5kbmRqZG
+pkbmRuZGpkamRqamRqZGpkamRqZGpkampkamRqZGpkaGRoZGpkamRqZGpkampkamRq
+ZGpkaGRoZGhkZGhkaGRoZGpqZGpkaGRoZGhkaGhkaGRoZGhkamRpZGllaWRqZGhoZGhka
+HNoc2hzaGhkaHNo]]>
+</SMS-BYTE>
+</XML>
+Later, on request of MOR team, we devised a solution to decode the above
+UDH headers from the <SMS_BYTE> and sent them as separate xml tags.
+<messageformat><![CDATA[<XML><TIME-STAMP>{0}</TIME-STAMP><TRANSACTION-ID>{1}<
+/TRANSACTION-ID><SMPP-ID>{2}</SMPP-ID><ESM-CLASS>{4}</ESM-CLASS><OA>{5}</OA><
+DA>{6}</DA><DCS>{7}</DCS><SMS>{8}</SMS><SMS-BYTE>{9}</SMS-BYTE><OPTIONAL-PAR
+AM>{11}</OPTIONAL-PARAM><MESSAGE>{17}</MESSAGE><MESSAGE-IDENTIFIER>{18}</ME
+SSAGE-IDENTIFIER><MESSAGE-PARTS>{19}</MESSAGE-PARTS><MESSAGE-PART-NUMBER>{2
+0}</MESSAGE-PART-NUMBER></XML>]]></messageformat>
+Refer the connector xml section in SMPP.xml to see what these numbers are
+meant."
+ELK logging,"ESME supports the ELK logging. ELK stands for Elasticsearch, Logstash, and
+Kibana. In the ELK stack, Logstash extracts the logging data or other events from
+different input sources. It processes the events and later stores it in
+Elasticsearch. Kibana is a web interface, which accesses the logging data form
+Elasticsearch and visualizes it.
+For sending logs into ELK, we added new configuration, <logs> in the Smpp.xml
+<logs>
+<formatPattern><![CDATA[TimeStamp::{1,date,yyyy-MM-dd'T'HH:mm:ss
+XXX}||ClientTransactionId::{3}||MSISDN::{15}||TransactionId::{2}||OfferCode::0||Transact
+ionDate::{4}||statusCode::{5}||Feature::{6}||SmscId::{0}||commandStatus::{7}||SeqNo::{8
+}||ServiceType::{9}||SourceAddrTon::{10}||SourceAddrNpi::{11}||DestAddrTon::{13}||Des
+tAddrNpi::{14}||SourceAddr::{12}||EsmClass::{16}||ProtocolId::{17}||RegisteredDelivery::{
+21}||DataCoding::{23}||ShortMessageHex::{25}||ShortMessage::{32}]]></formatPattern>
+</logs>
+The corresponding placeholders values are described in
+ELK_LogEsme_Object_Id_Desc . We can customize the parameters according to
+the client in <logs> section using the above document.
+A new log4j appender is also written in the log4j.xml to support ELK Logging."
+Data Coding – English,"English langauge is the most common usage case. We can use DCS zero for
+english script. 0 🡪 SMSC Default Alphabet. The trace for English language - long
+multi-part message( above 160 characters ) case is available here.
+Here, we can see that UDHI indicator is coming as 1, which denotes it is a
+multi-part message. And in the GSM SMS User Data, we can see the fragments
+and it’s details."
+Data Coding in Other Language Case,"The ESME supports the other language script. The other language feature is
+often used in two different scenarios.
+Foreign language in English script( eg: Indonesian in English script ) - Nomor
+yang Anda coba hubungi+6285771933138 saat ini sudah dalam
+jangkauan.
+● Foreign language in own script( eg: Arabic in Arabic script ) - هذا ، االمستخدمًًمرحب
+.للغات األخرى العربية DCS الختبار قيمة
+First scenario can be achieved easily by replicating the same configuration we
+use for the English language, with DCS zero. But when we need the second
+scenario, the MO Router need to send the DCS as 8 🡪 UCS2( most cases except
+French in some cases) in the request xml.
+The MOR need to place the message string as Decimal NCR equivalent of
+required language script in their message template table.
+http://www.endmemo.com/unicode/unicodeconverter.php is one of the online
+converters we can use for this conversion.
+Now MOR needs to handle appropriate business logic to process this Decimal
+NCR string into base-64 encoded string [check language converter class for
+Arabic]. This base-64 encoded short message is passed to ESME via
+SHORT-MESSAGE tag in the request xml/json and ESME changes that into
+corresponding smpp equivalent (hex string) and sends to SMSC."
+error Codes ( codes and descriptions) ,description
+-1001,Unknown feature or Illegal feature
+-1002,Overload rejection
+-1003,Internal server error (check feature_id)
+-1004,Unknown Operation or Exception
+1000,Illegal request Message
+1005,Mandatory field missing
+1006,Illegal data type
+1007,Username or password is not match
+1008,Other Error i.e. Not able to send response
+1009,Unknown CommandId
+1010,Execute Exception
+1011,CMD_FIELD_MISSING_ERRORCODE
+1012,UNKNOWN_COMMANDID_ERRORCODE
+"error code:1013-
+UNKNOWN_SMSC_ERRORCODE ,  in smpp.xml file smsc id and request packet smsc id should be same 
+For example:
+ <smsc id=""SMSC1"" protocol=""smpp""><!-- url=""http://10.0.2.21:8080/SMSC/Adapter"">  -->
+      <!-- This is the IP address of SMSC-->
+      <ip-address>127.0.0.1</ip-address>
+      <!-- Port to bind to3008-->
+      <port>2778</port>
+      <!-- Your system id-->
+      <system-id>test1</system-id>
+      <!-- Your password-->
+      <password>test1</password>","UNKNOWN_SMSC_ERRORCODE ,  in smpp.xml file smsc id and request packet smsc id should be same "
+"error code:1014-
+NOT_BOUND_WITH_SMSC_ERRORCODE  , esme and smsc not connected , configure proper smsc id and 
+for example : <smsc id=""SMSC1"" protocol=""smpp""><!-- url=""http://10.0.2.21:8080/SMSC/Adapter"">  -->
+      <!-- This is the IP address of SMSC-->
+      <ip-address>127.0.0.1</ip-address>
+      <!-- Port to bind to3008-->
+      <port>2778</port>
+      <!-- Your system id-->
+      <system-id>test1</system-id>
+      <!-- Your password-->
+      <password>test1</password>","NOT_BOUND_WITH_SMSC_ERRORCODE  , esme and smsc not connected , configure proper smsc id and 
+for example : <smsc id=""SMSC1"" protocol=""smpp""><!-- url=""http://10.0.2.21:8080/SMSC/Adapter"">  -->
+      <!-- This is the IP address of SMSC-->
+      <ip-address>127.0.0.1</ip-address>
+      <!-- Port to bind to3008-->
+      <port>2778</port>
+      <!-- Your system id-->
+      <system-id>test1</system-id>
+      <!-- Your password-->
+      <password>test1</password>"
+1015,ALREADY_BOUND_WITH_SMSC_ERRORCODE
+1016,IOEXCEPTION_ERRORCODE
+1017,NEGATIVE_RESPONSE_ERRORCODE
+1018,RESPONSE_TIMEOUT_ERRORCODE
+1019,UNSUC_DELIVERY_SME_ERRORCODE
+1020,THROTTLING_LIMIT_ERRORCODE
+SMSC Error Codes,"VALUE DESCRIPTION
+0x00000000 No Error
+0x00000001 Message Length is invalid
+0x00000002 Command Length is invalid
+0x00000003 Invalid Command ID
+0x00000004 Incorrect BIND Status for given command
+0x00000005 ESME Already in Bound State
+0x00000006 Invalid Priority Flag
+0x00000007 Invalid Registered Delivery Flag
+0x00000008 System Error
+0x00000009 Reserved
+0x0000000A Invalid Source Address
+0x0000000B Invalid Destination Address
+0x0000000C Message ID is invalid
+0x0000000D Bind Failed
+0x0000000E Invalid Password
+0x0000000F Invalid System ID
+0x00000010 Reserved
+0x00000011 Cancel SM Failed
+0x00000012 Reserved
+0x00000013 Replace SM Failed
+0x00000014 Message Queue Full
+0x00000015 Invalid Service Type
+0x00000016
+0x00000032 Reserved
+0x00000033 Invalid number of destinations
+0x00000034 Invalid Distribution List name
+0x00000035
+0x0000003F Reserved
+0x00000040 Destination flag is invalid (submit_multi)
+0x00000041 Reserved
+0x00000042 Invalid 'submit with replace' request (e.g.
+submit_sm with replace_if_present_flag
+set)
+0x00000043 Invalid esm_class field data
+0x00000044 Cannot Submit to Distribution List
+0x00000045 submit_sm or submit_multi failed
+0x00000046
+0x00000047 Reserved
+0x00000048 Invalid Source address TON
+Check the document for correct TON/NPI
+values
+0x00000049 Invalid Source address NPI
+0x00000050 Invalid Destination address TON
+0x00000051 Invalid Destination address NPI
+0x00000052 Reserved
+0x00000053 Invalid system_type field
+0x00000054 Invalid replace_if_present flag
+0x00000055 Invalid number of messages
+0x00000056
+0x00000057 Reserved
+0x00000058 Throttling error (ESME has exceeded
+0x00000059
+0x00000060 Reserved
+0x00000061 Invalid Scheduled Delivery Time
+0x00000062 Invalid message validity period (Expiry
+time)
+0x00000063 Predefined Message Invalid or Not Found
+0x00000064 ESME Receiver Temporary App Error Code
+0x00000065 ESME Receiver Permanent App Error Code
+0x00000066 ESME Receiver Reject Message Error Code
+0x00000067 query_sm request failed
+0x00000068
+0x000000A9
+0x000000BF Reserved
+0x000000C0 Error in the optional part of the PDU Body
+0x000000C1 Optional Parameter not allowed
+0x000000C2 Invalid Parameter Length.
+0x000000C3 Expected Optional Parameter missing
+0x000000C4 Invalid Optional Parameter Value
+0x000000C5
+0x000000FD Reserved
+0x000000FE Delivery Failure (used for data_sm_resp)
+0x000000FF Unknown Error
+0x00000100
+0x000003FF Reserved for SMPP extension
+0x00000400
+0x000004FF Reserved for SMSC vendor specific errors
+0xFFFFFFFF ReservedMessage State"
+"smpp.xml file this is the important file in esme where we can chnage and update the esme application 
+and smsc connection details  and the path is esme-wildfly\standalone\deployments\ESME.war\WEB-INF\classes\smpp.xml file.","<config>
+ <smsc id=""SMSC1"" protocol=""smpp""><!-- url=""http://10.0.2.21:8080/SMSC/Adapter"">  -->
+      <!-- This is the IP address of SMSC-->
+      <ip-address>127.0.0.1</ip-address>
+      <!-- Port to bind to3008-->
+      <port>2778</port>
+      <!-- Your system id-->
+      <system-id>test1</system-id>
+      <!-- Your password-->
+      <password>test1</password>
+      <system-type>smpp</system-type>
+      <!-- The bind mode can be t, r, or tr for transmitter,-->
+      <!-- receiver or transciever respectively-->
+      <bind-mode>trx</bind-mode>
+      <!-- The receive timeout is a timeout for trying to receive a message-->
+      <!-- from the SMSC in synchronise way. -->
+      <!-- set the receive-timeout to number of seconds.-->
+      <receive-timeout>5</receive-timeout>
+      <enquireLinkTimer>5</enquireLinkTimer>
+      <!-- No of thread process simultanouly for SMSC request-->
+      <pdu-processors>3</pdu-processors>
+      <!-- set the pdu-processor waiting queue size.If you want go to infinite ,-->
+      <!-- set the pdu-maxQueueSize to -1.Otherwise -->
+      <!-- set the pdu-maxQueueSize to number-->
+      <pdu-maxQueueSize>-1</pdu-maxQueueSize>
+      <!-- The address range this smpp client will serve-->
+      <addr-ton>0</addr-ton>
+      <addr-npi>0</addr-npi>
+      <addr-range>NULL</addr-range>
+      <!-- The service type can be empty or one of-->
+      <!-- the following values:-->
+      <!-- CMT, CPT, VMN, VMA, WAP or USSD-->
+      <service-type>NULL</service-type>
+      <sourceAddrTon>0</sourceAddrTon>
+      <sourceAddrNpi>0</sourceAddrNpi>
+      <destAddrTon>0</destAddrTon>
+      <destAddrNpi>0</destAddrNpi>
+      <esmClass>0</esmClass>
+      <concatenatedSMesmClass>0</concatenatedSMesmClass>
+      <protocolId>0</protocolId>
+      <priorityFlag>1</priorityFlag>
+	  <!--registeredDelivery 0 no DR, 1 means DELIVERY-RECEIPT needed-->
+      <registeredDelivery>0</registeredDelivery>
+      <replaceIfPresentFlag>0</replaceIfPresentFlag>
+      <smDefaultMsgId>0</smDefaultMsgId>
+      <allowedNumSeries>[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]3</allowedNumSeries>
+      <messageReceiverListenerImpl>com.sixdee.imp.receiver.MessageReceiverListenerImpl</messageReceiverListenerImpl>
+      <!--  Value for data coding schema, default value is zero for english, other lang 8 -->
+      <dcs>0</dcs>
+      <inByte>0</inByte>
+	  <!-- for max tps set -1-->
+      <tps>-1</tps>
+ </smsc>
+
+<!--connector  section for sending MO(smsc) message to ngw or morouter)-->
+
+ <connector>
+        <!-- Simultanouly, No of thread send msges to NG/3rd party through http.-->
+        <max_connection>5</max_connection>
+        <transportprotocol>http</transportprotocol>
+        <transportmethod>post</transportmethod>
+        <transporturl1>http://10.0.0.69:8076/UMS/HttpAdapter</transporturl1>
+        <transporturl2>http://10.0.0.69:9650/ProfileManager_Ums/HttpAdapter</transporturl2>
+        <!-- <messageformat><![CDATA[<XML><TIME-STAMP>{0}</TIME-STAMP><TRANSACTION-ID>{1}</TRANSACTION-ID><SMPP-ID>{2}</SMPP-ID><ESM-CLASS>{4}</ESM-CLASS><OA>{5}</OA><DA>{6}</DA><DCS>{7}</DCS><SMS>{8}</SMS><SMS-BYTE>{9}</SMS-BYTE><OPTIONAL-PARAM>{11}</OPTIONAL-PARAM><MESSAGE>{17}</MESSAGE><MESSAGE-IDENTIFIER>{18}</MESSAGE-IDENTIFIER><MESSAGE-PARTS>{19}</MESSAGE-PARTS><MESSAGE-PART-NUMBER>{20}</MESSAGE-PART-NUMBER></XML>]]></messageformat>  --> 
+        <messageformat>""timeStamp"": ""{0}"",""transactionId"": ""{1}"",""smscID"": ""{2}"",""esmClass"": ""{4}"",""orginatingAddress"": ""{5}"",""destinationAddress"": ""{6}"",""dcs"": ""{7}"",""sms"": ""{8}"",""byteSms"": ""{9}"",""optionalParamText"":""{11}"",""message"":""{17}"",""messageIdentifier"":""{18}"",""messageParts"":""{19}"",""messagePartNumber"":""{20}""</messageformat>
+ </connector>
+ <!--deliveryconnector section is for sending deliveryrecipt to the 3rd party application-->
+ 
+ <deliveryconnector>
+    <!-- Simultanouly, No of thread send msges to NG/3rd party through http.-->
+    <max_connection>5</max_connection>
+        <transportprotocol>http</transportprotocol>
+        <transportmethod>post</transportmethod>
+        <transporturl1>http://10.0.0.65:8022/MCA/HttpAdapter</transporturl1>
+        <transporturl2>http://10.0.0.69:9650/ProfileManager_Ums/HttpAdapter</transporturl2>
+        <!--<messageformat><![CDATA[<REQ><FEATURE>DELIVERY-RECEIPT</FEATURE><TIME-STAMP>{0}</TIME-STAMP><TRANSACTION-ID>{1}</TRANSACTION-ID><SMPP-ID>{2}</SMPP-ID><COMMAND-ID>{3}</COMMAND-ID><OA>{5}</OA><DA>{6}</DA><DCS>{7}</DCS><SMS>{8}</SMS><MESSAGE-ID>{10}</MESSAGE-ID></REQ>]]></messageformat>  -->  
+        <messageformat>""featureId"": ""DELIVERY-RECEIPT"",""timeStamp"": ""{0}"",""transactionId"": ""{1}"",""smscID"": ""{2}"",""commandId"": ""{3}"",""orginatingAddress"": ""{5}"",""destinationAddress"": ""{6}"",""dcs"": ""{7}"",""sms"": ""{8}"",""messageId"": ""{10}""</messageformat>
+ </deliveryconnector>
+
+ <optionalparameterstag>
+  <tlv1>
+   <tag>5126</tag>
+   <name>OptionalParam_OA</name>
+  </tlv1>
+ </optionalparameterstag>
+
+ <cdr>
+   <formatPattern><![CDATA[Header = [Smsc Id = {0}, Log time = {1}, Request Id = {2}, Request Transaction Id = {3}, Submit time ={4}], REQ = [Status Code = {5}, command_id(hex) = {6}, command_status ={7}, sequence_number ={8}, service_type = {9}, source_addr_ton = {10}, source_addr_npi = {11}, source_addr = {12}, dest_addr_ton = {13}, dest_addr_npi ={14}, dest_addr = {15}, esm_class ={16}, registered_delivery ={21}, replace_if_present_flag = {22}, data_coding(int) = {23}, short_message(hex) = {25}], RESP = [command_id = {26}, command_status = {27}, sequence_number = {28}, message_id = {29}]]]></formatPattern>
+ </cdr>
+
+ <logs>
+  <formatPattern><![CDATA[TimeStamp::{1,date,yyyy-MM-dd'T'HH:mm:ss XXX}||ClientTransactionId::{3}||MSISDN::{15}||TransactionId::{2}||OfferCode::0||TransactionDate::{4}||statusCode::{5}||Feature::{6}||SmscId::{0}||commandStatus::{7}||SeqNo::{8}||ServiceType::{9}||SourceAddrTon::{10}||SourceAddrNpi::{11}||DestAddrTon::{13}||DestAddrNpi::{14}||SourceAddr::{12}||EsmClass::{16}||ProtocolId::{17}||RegisteredDelivery::{21}||DataCoding::{23}||ShortMessageHex::{25}||ShortMessage::{32}]]></formatPattern>
+ </logs>
+
+</config>"
+"error code:1014-
+NOT_BOUND_WITH_SMSC_ERRORCODE  , esme and smsc not connected , configure proper smsc id and 
+for example : <smsc id=""SMSC1"" protocol=""smpp""><!-- url=""http://10.0.2.21:8080/SMSC/Adapter"">  -->
+      <!-- This is the IP address of SMSC-->
+      <ip-address>127.0.0.1</ip-address>
+      <!-- Port to bind to3008-->
+      <port>2778</port>
+      <!-- Your system id-->
+      <system-id>test1</system-id>
+      <!-- Your password-->
+      <password>test1</password>","NOT_BOUND_WITH_SMSC_ERRORCODE  , esme and smsc not connected , configure proper smsc id and 
+for example : <smsc id=""SMSC1"" protocol=""smpp""><!-- url=""http://10.0.2.21:8080/SMSC/Adapter"">  -->
+      <!-- This is the IP address of SMSC-->
+      <ip-address>127.0.0.1</ip-address>
+      <!-- Port to bind to3008-->
+      <port>2778</port>
+      <!-- Your system id-->
+      <system-id>test1</system-id>
+      <!-- Your password-->
+      <password>test1</password>"
+
+smpp.xml file,"The smpp.xml file is an important configuration file in the ESME application. It is used to change and update the ESME application and SMSC connection details. The file is located at:
+esme-wildfly\standalone\deployments\ESME.war\WEB-INF\classes\smpp.xml"
